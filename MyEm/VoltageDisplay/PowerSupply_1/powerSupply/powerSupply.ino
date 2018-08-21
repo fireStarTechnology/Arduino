@@ -10,6 +10,10 @@
 #define RELAY 12
 #define START_UP_DELAY 3000
 
+float voltage[] = { 4,6,8,10,12,14,16 };
+float current[] = { 0.6, 2.6, 4.55, 6.57, 8.6, 10.6, 12.6 };
+uint8_t voltageLength = sizeof(voltage)/ sizeof(float);
+uint8_t currentLength = sizeof(current)/ sizeof(float);
 
 const float lUpCurrent[] = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 const int opCurrentAdcValue[] = { 3, 7, 10, 14, 17, 20, 24, 27, 31, 34, 68, 102, 136, 170, 341, 512, 683, 853, 1024 };
@@ -205,4 +209,35 @@ void timerISR( void )
 void takeReading()
 {
   oneSec_f = true;
+}
+
+/******************************************************************
+ * 
+ ******************************************************************/
+float findyValue( float x3 )
+{
+    int x1p = 0, x2p = 0;
+    uint8_t loop = 0;
+    float m = 0;
+    float y3 = 0;
+
+    x1p = 0;
+    x2p = voltageLength - 1;
+    for(loop = 0;loop<voltageLength-1;loop++)
+    {
+        if( x3 > voltage[x1p] )
+            x1p = loop;
+        if( x3 < voltage[x2p] )
+            x2p = voltageLength-(loop+1);
+    }
+    x1p--;
+    x2p++;
+
+    //printf("\nX1 = %f \t X2 = %f", voltage[x1p],voltage[x2p]);
+    //printf("\nY1 = %f \t Y2 = %f", current[x1p],current[x2p]);
+    m = ( voltage[x2p] - voltage[x1p] ) / ( current[x2p] - current[x1p] );
+
+     y3 = (m*(x3-voltage[x2p])+ current[x2p]);
+
+    // printf("\nM = %f\n Y3 = %f", m, y3 );
 }
