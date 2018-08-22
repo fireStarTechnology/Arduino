@@ -10,14 +10,15 @@
 #define RELAY 12
 #define START_UP_DELAY 3000
 
+#define TOTAL_POWER 1464
+
 float voltage[] = { 4,6,8,10,12,14,16 };
 float current[] = { 0.6, 2.6, 4.55, 6.57, 8.6, 10.6, 12.6 };
-uint8_t voltageLength = sizeof(voltage)/ sizeof(float);
-uint8_t currentLength = sizeof(current)/ sizeof(float);
 
-const float lUpCurrent[] = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-const int opCurrentAdcValue[] = { 3, 7, 10, 14, 17, 20, 24, 27, 31, 34, 68, 102, 136, 170, 341, 512, 683, 853, 1024 };
-
+uint16_t outCurrentAdcLUT[] = {0, 3, 7, 10, 14, 17, 20, 24, 27, 31, 34, 68, 102, 136, 170, 341, 512, 683, 853, 1024 };
+float outCurrentCalLUT[] = { 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 3, 4, 5, 10, 15, 20, 25, 30 };
+uint8_t sizeAdcLUT = sizeof(outCurrentAdcLUT)/ sizeof(uint16_t);
+uint8_t sizeCalCurLUT = sizeof(outCurrentCalLUT)/ sizeof(float);
 
 typedef struct
 {
@@ -55,6 +56,13 @@ const unsigned int ADC_INPUT_CURRENT = A4;
 const int rs = 2, en = 3, d4 = 4, d5 = 5, d6 = 6, d7 = 7;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 unsigned int looptime = 0;
+
+/********************************************************************************
+Name        : setup
+para 1      : N/A
+return      : N/A
+Discription : System Initialization code.
+**********************************************************************************/
 void setup() 
 {
   Init_LCD();
@@ -66,97 +74,72 @@ void setup()
   delay(START_UP_DELAY*2);
   digitalWrite(RELAY, HIGH);
 }
-
+/********************************************************************************
+Name        : loop
+para 1      : N/A
+return      : N/A
+Discription : This is main while loop run continueslly 
+**********************************************************************************/
 void loop() 
 {
+  float power = 0;
+
 
   for( looptime=0;looptime<=1000; looptime++ )
-  {
-    
-//!< OUTPUTVOLTAGE READING
-		adc.voltOutput = analogRead(ADC_OUTPUT_VOLT); 
-		if( adc.voltOutput > outputVolt.peakMax )
-		{
-		outputVolt.peakMax = adc.voltOutput;
-		}
-		if( adc.voltOutput < outputVolt.lowMin )
-		{
-		  outputVolt.lowMin = adc.voltOutput;
-		}
+  {    
+        //!< OUTPUTVOLTAGE READING
+        adc.voltOutput = analogRead(ADC_OUTPUT_VOLT); 
+        if( adc.voltOutput > outputVolt.peakMax )
+        {
+        outputVolt.peakMax = adc.voltOutput;
+        }
+        if( adc.voltOutput < outputVolt.lowMin )
+        {
+          outputVolt.lowMin = adc.voltOutput;
+        }
 
-//!< INPUTVOLTAGE READING
-		adc.voltInput = analogRead(ADC_INPUT_VOLT); 
-		if( adc.voltInput > inputVolt.peakMax )
-		{
-			inputVolt.peakMax = adc.voltInput;
-		}
-		if( adc.voltInput < inputVolt.lowMin )
-		{
-			inputVolt.lowMin = adc.voltInput;
-		}
+        //!< INPUTVOLTAGE READING
+        adc.voltInput = analogRead(ADC_INPUT_VOLT); 
+        if( adc.voltInput > inputVolt.peakMax )
+        {
+            inputVolt.peakMax = adc.voltInput;
+        }
+        if( adc.voltInput < inputVolt.lowMin )
+        {
+            inputVolt.lowMin = adc.voltInput;
+        }
     
-//===============!< OUTPUTCURRENT READING
-		adc.currentOutput = analogRead(ADC_OUTPUT_CURRENT); 
-		if( adc.currentOutput > outputCurrent.peakMax )
-		{
-		outputCurrent.peakMax = adc.currentOutput;
-		}
-		if( adc.currentOutput < outputCurrent.lowMin )
-		{
-		  outputCurrent.lowMin = adc.currentOutput;
-		}
-
-//!< INPUTCURRENT READING  --- currently no need of input current....
-/*		adc.currentInput = analogRead(ADC_INPUT_CURRENT); 
-		if( adc.currentInput > inputCurrent.peakMax )
-		{
-			inputCurrent.peakMax = adc.currentInput;
-		}
-		if( adc.currentInput < inputCurrent.lowMin )
-		{
-			inputCurrent.lowMin = adc.currentInput;
-		}*/
-    
-   
+        //==!< OUTPUTCURRENT READING
+        adc.currentOutput = analogRead(ADC_OUTPUT_CURRENT); 
+        if( adc.currentOutput > outputCurrent.peakMax )
+        {
+        outputCurrent.peakMax = adc.currentOutput;
+        }
+        if( adc.currentOutput < outputCurrent.lowMin )
+        {
+          outputCurrent.lowMin = adc.currentOutput;
+        }
   }
-         
-	//oneSec_f = false;
-	outputVolt.meanValue = outputVolt.peakMax - outputVolt.lowMin;
-	outputVolt.realWorldValue = outputVolt.meanValue * 0.449657;			   	//  n=(311/1023)*m;0.30400782
-	outputVolt.realWorldValue = (outputVolt.realWorldValue/1.390);   
-	
-	outputCurrent.meanValue = outputCurrent.peakMax - outputCurrent.lowMin;
-   for ( char i = 0; i<19; i++)
-    {
-      if( opCurrentAdcValue[i] > inputVolt.meanValue )
-      {
-        opLowValue = i-1;
-        break;
-      }
-    }
-    for ( char i = 0; i<19; i++)
-    {
-      if( opCurrentAdcValue[i] > inputVolt.meanValue )
-      {
-        opHighValue = i;
-        break;
-      }
-    }
+    //XXXXXXXXXXXXXXXXXXXXX  END OF 1000 SAMPLES  XXXXXXXXXXXXXXXXXXXXXX
+  
+    //oneSec_f = false;
+    outputVolt.meanValue = outputVolt.peakMax - outputVolt.lowMin;
+    outputVolt.realWorldValue = outputVolt.meanValue * 0.449657;                   //  n=(311/1023)*m;0.30400782
+    outputVolt.realWorldValue = (outputVolt.realWorldValue/1.390);   
+            
+    inputVolt.meanValue = inputVolt.peakMax - inputVolt.lowMin;
+    inputVolt.realWorldValue = inputVolt.meanValue * 0.449657;                    //  n=(311/1023)*m;0.30400782
+    inputVolt.realWorldValue = (inputVolt.realWorldValue/1.390);  
 
-    outputCurrent.realWorldValue = lUpCurrent[opLowValue];
-	//outputCurrent.realWorldValue = outputCurrent.meanValue * 0.449657;			//  n=(311/1023)*m;0.30400782
-	//outputCurrent.realWorldValue = (outputCurrent.realWorldValue/1.390);  
-	
-	inputVolt.meanValue = inputVolt.peakMax - inputVolt.lowMin;
-	inputVolt.realWorldValue = inputVolt.meanValue * 0.449657;					//  n=(311/1023)*m;0.30400782
-	inputVolt.realWorldValue = (inputVolt.realWorldValue/1.390);  
+    outputCurrent.meanValue = outputCurrent.peakMax - outputCurrent.lowMin;    
+    outputCurrent.realWorldValue = findyValue(outputCurrent.meanValue);
+    power = outputVolt.realWorldValue*outputCurrent.realWorldValue;
 
-  load = outputVolt.realWorldValue/outputCurrent.realWorldValue;
-/*	inputCurrent.meanValue = inputCurrent.peakMax - inputCurrent.lowMin;
-	inputCurrent.realWorldValue = inputCurrent.meanValue * 0.449657;			//  n=(311/1023)*m;0.30400782
-	inputCurrent.realWorldValue = (inputCurrent.realWorldValue/1.390);        
-*/
-	updateLcd();
+    
+    load = (power/TOTAL_POWER)*100;
+
+  
+    updateLcd();
 
     outputVolt.peakMax = 0;
     outputVolt.lowMin = 0x3FF;
@@ -169,6 +152,13 @@ void loop()
     load = 0;
 }
 
+//XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX END OF MAIN LOOP  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+/********************************************************************************
+Name        : updateLcd
+para 1      : N/A
+return      : N/A
+Discription : The LCD display will update with the real world value.
+**********************************************************************************/
 void Init_LCD( void )
 {
   lcd.begin(16, 2);
@@ -181,10 +171,15 @@ void Init_LCD( void )
   lcd.clear();
   lcd.print("Initializing...");
   lcd.setCursor(0,1);
-  lcd.print("Safe 1K5 ");
+  lcd.print("*** Safe 1K5 ***");
 
 }
-
+/********************************************************************************
+Name        : updateLcd
+para 1      : N/A
+return      : N/A
+Discription : The LCD display will update with the real world value.
+**********************************************************************************/
 void updateLcd( void )
 {
     lcd.clear();
@@ -195,49 +190,64 @@ void updateLcd( void )
     
     lcd.setCursor(0,1);
     lcd.print( "OPC:" );
-    lcd.print( (int)outputCurrent.realWorldValue, DEC );
+    lcd.print( outputCurrent.realWorldValue, DEC );
+    lcd.setCursor(8,1);
     lcd.print( " LOD:" );
     lcd.print( (int)load, DEC );
     lcd.setCursor(15,1);
-    lcd.print( "%" );
-   
+    lcd.print( "%" );   
 }
+/********************************************************************************
+Name        : updateLcd
+para 1      : N/A
+return      : N/A
+Discription : The LCD display will update with the real world value.
+**********************************************************************************/
 void timerISR( void )
 {
   oneSec_f = true;
 }
+/********************************************************************************
+Name        : updateLcd
+para 1      : N/A
+return      : N/A
+Discription : The LCD display will update with the real world value.
+**********************************************************************************/
 void takeReading()
 {
   oneSec_f = true;
 }
-
-/******************************************************************
- * 
- ******************************************************************/
-float findyValue( float x3 )
+/********************************************************************************
+Name        : updateLcd
+para 1      : N/A
+return      : N/A
+Discription : The LCD display will update with the real world value.
+**********************************************************************************/
+float findyValue( int x3 )
 {
-    int x1p = 0, x2p = 0;
+    uint8_t x1p = 0, x2p = 0;
     uint8_t loop = 0;
     float m = 0;
     float y3 = 0;
 
     x1p = 0;
-    x2p = voltageLength - 1;
-    for(loop = 0;loop<voltageLength-1;loop++)
+    x2p = sizeAdcLUT - 1;
+    for(loop = 0;loop<sizeAdcLUT-1;loop++)
     {
-        if( x3 > voltage[x1p] )
+        if( x3 > outCurrentAdcLUT[x1p] )
             x1p = loop;
         if( x3 < voltage[x2p] )
-            x2p = voltageLength-(loop+1);
+            x2p = outCurrentAdcLUT-(loop+1);
     }
+    if(x1p != 0)
     x1p--;
     x2p++;
 
-    //printf("\nX1 = %f \t X2 = %f", voltage[x1p],voltage[x2p]);
-    //printf("\nY1 = %f \t Y2 = %f", current[x1p],current[x2p]);
-    m = ( voltage[x2p] - voltage[x1p] ) / ( current[x2p] - current[x1p] );
+    //outputCurrent.realWorldValue = x1p;
+   // load = x2p;
 
-     y3 = (m*(x3-voltage[x2p])+ current[x2p]);
+    m = ( outCurrentCalLUT[x2p] - outCurrentCalLUT[x1p] )/ ( outCurrentAdcLUT[x2p] - outCurrentAdcLUT[x1p] );
+    y3 = ((m*(x3-outCurrentAdcLUT[x1p]))+ outCurrentCalLUT[x1p]);
 
-    // printf("\nM = %f\n Y3 = %f", m, y3 );
+    return( y3 );
 }
